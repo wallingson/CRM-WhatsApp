@@ -1,0 +1,265 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(AGENT)
+  avatar    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leads         Lead[]
+  messages      Message[]
+  tasks         Task[]
+  assignedLeads Lead[]    @relation("AssignedLeads")
+  teams         TeamMember[]
+  activities    Activity[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  AGENT
+}
+
+model Team {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members TeamMember[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id     String @id @default(uuid())
+  userId String
+  teamId String
+  role   String @default("member")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+  @@map("team_members")
+}
+
+model Lead {
+  id          String     @id @default(uuid())
+  name        String
+  phone       String     @unique
+  email       String?
+  source      String?
+  status      LeadStatus @default(NEW)
+  stageId     String?
+  assignedTo  String?
+  createdBy   String
+  tags        String[]
+  customFields Json?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  creator  User      @relation(fields: [createdBy], references: [id])
+  assigned User?     @relation("AssignedLeads", fields: [assignedTo], references: [id])
+  stage    Stage?    @relation(fields: [stageId], references: [id])
+  messages Message[]
+  tasks    Task[]
+  activities Activity[]
+
+  @@index([phone])
+  @@index([status])
+  @@index([assignedTo])
+  @@map("leads")
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+model Stage {
+  id        String   @id @default(uuid())
+  name      String
+  color     String   @default("#6366f1")
+  order     Int
+  pipelineId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  leads    Lead[]
+
+  @@map("stages")
+}
+
+model Pipeline {
+  id        String   @id @default(uuid())
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stages Stage[]
+
+  @@map("pipelines")
+}
+
+model Message {
+  id          String        @id @default(uuid())
+  leadId      String
+  userId      String?
+  content     String
+  messageType MessageType   @default(TEXT)
+  direction   Direction
+  whatsappId  String?       @unique
+  status      MessageStatus @default(SENT)
+  mediaUrl    String?
+  metadata    Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  lead Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([leadId])
+  @@index([whatsappId])
+  @@map("messages")
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  LOCATION
+  TEMPLATE
+}
+
+enum Direction {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  leadId      String?
+  assignedTo  String
+  dueDate     DateTime?
+  priority    Priority   @default(MEDIUM)
+  status      TaskStatus @default(PENDING)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  lead Lead? @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user User  @relation(fields: [assignedTo], references: [id])
+
+  @@index([assignedTo])
+  @@index([status])
+  @@map("tasks")
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Automation {
+  id          String           @id @default(uuid())
+  name        String
+  description String?
+  trigger     AutomationTrigger
+  conditions  Json?
+  actions     Json
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("automations")
+}
+
+enum AutomationTrigger {
+  NEW_MESSAGE
+  LEAD_CREATED
+  STAGE_CHANGED
+  TAG_ADDED
+  SCHEDULED
+}
+
+model Template {
+  id        String   @id @default(uuid())
+  name      String
+  content   String
+  category  String?
+  variables String[]
+  mediaUrl  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("templates")
+}
+
+model Activity {
+  id          String       @id @default(uuid())
+  leadId      String
+  userId      String
+  type        ActivityType
+  description String
+  metadata    Json?
+  createdAt   DateTime     @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([leadId])
+  @@map("activities")
+}
+
+enum ActivityType {
+  NOTE
+  CALL
+  EMAIL
+  MEETING
+  STATUS_CHANGE
+  STAGE_CHANGE
+  ASSIGNMENT
+}

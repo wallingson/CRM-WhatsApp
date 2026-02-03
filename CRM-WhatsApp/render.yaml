@@ -1,0 +1,6 @@
+version: 2
+build:
+  env:
+    NODE_VERSION: 20.x
+buildCommand: cd backend && npm install && npm run build
+startCommand: cd backend && npm run migrate:deploy && npm start
